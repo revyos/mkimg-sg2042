@@ -1,3 +1,4 @@
 rootfs/
 rootfs.img
-revyos-sg2042-*.img
+revyos-*-*.img
+md5sum.txt

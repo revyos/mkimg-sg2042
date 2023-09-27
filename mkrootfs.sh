@@ -2,10 +2,46 @@
 
 set -euo pipefail
 
+MODEL=${MODEL:-sg2042} # sg2042, pisces
 DEVICE=/dev/loop100
 CHROOT_TARGET=rootfs
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-ROOT_IMG=revyos-sg2042-${TIMESTAMP}.img
+ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
+
+# == kernel variables ==
+KERNEL_sg2042="linux-headers-6.1.52-sg2042 linux-image-6.1.52-sg2042 linux-perf-sg2042"
+KERNEL_pisces="linux-headers-6.1.52-pisces linux-image-6.1.52-pisces linux-perf-sg2042"
+KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
+
+# == packages ==
+BASE_TOOLS="binutils file tree sudo bash-completion u-boot-menu initramfs-tools openssh-server network-manager dnsmasq-base libpam-systemd ppp wireless-regdb wpasupplicant libengine-pkcs11-openssl iptables systemd-timesyncd vim usbutils libgles2 parted"
+XFCE_DESKTOP="xorg xfce4 desktop-base lightdm xfce4-terminal tango-icon-theme xfce4-notifyd xfce4-power-manager network-manager-gnome xfce4-goodies pulseaudio alsa-utils dbus-user-session rtkit pavucontrol thunar-volman eject gvfs gvfs-backends udisks2 dosfstools e2fsprogs e2fsprogs libblockdev-crypto2 ntfs-3g polkitd exfat-fuse "
+GNOME_DESKTOP="gnome-core avahi-daemon desktop-base file-roller gnome-tweaks gstreamer1.0-libav gstreamer1.0-plugins-ugly libgsf-bin libproxy1-plugin-networkmanager network-manager-gnome"
+KDE_DESKTOP="kde-plasma-desktop"
+BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
+#FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
+FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
+INCLUDE_APPS="firefox vlc gimp gimp-data-extras gimp-plugin-registry gimp-gmic"
+EXTRA_TOOLS="i2c-tools net-tools ethtool"
+LIBREOFFICE="libreoffice-base \
+libreoffice-calc \
+libreoffice-core \
+libreoffice-draw \
+libreoffice-impress \
+libreoffice-math \
+libreoffice-report-builder-bin \
+libreoffice-writer \
+libreoffice-nlpsolver \
+libreoffice-report-builder \
+libreoffice-script-provider-bsh \
+libreoffice-script-provider-js \
+libreoffice-script-provider-python \
+libreoffice-sdbc-mysql \
+libreoffice-sdbc-postgresql \
+libreoffice-wiki-publisher \
+"
+DOCKER="docker.io apparmor ca-certificates cgroupfs-mount git needrestart xz-utils"
+ADDONS="initramfs-tools firmware-amd-graphics"
 
 machine_info() {
     uname -a
@@ -60,43 +96,6 @@ img_setup() {
     mount "${DEVICE}p1" rootfs/boot/efi
 }
 
-
-machine_info
-init
-install_deps
-qemu_setup
-img_setup
-
-KERNEL="linux-headers-6.1.52-sg2042 linux-image-6.1.52-sg2042 linux-perf-sg2042"
-BASE_TOOLS="binutils file tree sudo bash-completion u-boot-menu initramfs-tools openssh-server network-manager dnsmasq-base libpam-systemd ppp wireless-regdb wpasupplicant libengine-pkcs11-openssl iptables systemd-timesyncd vim usbutils libgles2 parted"
-XFCE_DESKTOP="xorg xfce4 desktop-base lightdm xfce4-terminal tango-icon-theme xfce4-notifyd xfce4-power-manager network-manager-gnome xfce4-goodies pulseaudio alsa-utils dbus-user-session rtkit pavucontrol thunar-volman eject gvfs gvfs-backends udisks2 dosfstools e2fsprogs e2fsprogs libblockdev-crypto2 ntfs-3g polkitd exfat-fuse "
-GNOME_DESKTOP="gnome-core avahi-daemon desktop-base file-roller gnome-tweaks gstreamer1.0-libav gstreamer1.0-plugins-ugly libgsf-bin libproxy1-plugin-networkmanager network-manager-gnome"
-KDE_DESKTOP="kde-plasma-desktop"
-BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
-#FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
-FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
-INCLUDE_APPS="firefox vlc gimp gimp-data-extras gimp-plugin-registry gimp-gmic"
-EXTRA_TOOLS="i2c-tools net-tools ethtool"
-LIBREOFFICE="libreoffice-base \
-libreoffice-calc \
-libreoffice-core \
-libreoffice-draw \
-libreoffice-impress \
-libreoffice-math \
-libreoffice-report-builder-bin \
-libreoffice-writer \
-libreoffice-nlpsolver \
-libreoffice-report-builder \
-libreoffice-script-provider-bsh \
-libreoffice-script-provider-js \
-libreoffice-script-provider-python \
-libreoffice-sdbc-mysql \
-libreoffice-sdbc-postgresql \
-libreoffice-wiki-publisher \
-"
-DOCKER="docker.io apparmor ca-certificates cgroupfs-mount git needrestart xz-utils"
-ADDONS="initramfs-tools firmware-amd-graphics"
-
 make_rootfs() {
     mmdebstrap --architectures=riscv64 \
     --skip=check/empty \
@@ -125,8 +124,8 @@ useradd -m -s /bin/bash -G adm,sudo debian
 echo 'debian:debian' | chpasswd
 
 # Change hostname
-echo revyos-sg2042 > /etc/hostname
-echo 127.0.1.1 revyos-sg2042 >> /etc/hosts
+echo revyos-${MODEL} > /etc/hostname
+echo 127.0.1.1 revyos-${MODEL} >> /etc/hosts
 
 exit
 EOF
@@ -166,11 +165,17 @@ EOF
     rm -vrf $CHROOT_TARGET/var/lib/apt/lists/*
 
     # cp bootloader
-    cp -vr bootloader/* $CHROOT_TARGET/boot/efi/
+    cp -vr bootloader/${MODEL}/* $CHROOT_TARGET/boot/efi/
 
     umount -l "$CHROOT_TARGET"
 }
 
+
+machine_info
+init
+install_deps
+qemu_setup
+img_setup
 make_rootfs
 after_mkrootfs
 
