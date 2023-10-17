@@ -2,15 +2,15 @@
 
 set -euo pipefail
 
-MODEL=${MODEL:-sg2042} # sg2042, pisces
+MODEL=${MODEL:-pioneer} # pioneer, pisces
 DEVICE=/dev/loop100
 CHROOT_TARGET=rootfs
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
 
 # == kernel variables ==
-KERNEL_sg2042="linux-headers-6.1.52-sg2042 linux-image-6.1.52-sg2042 linux-perf-sg2042"
-KERNEL_pisces="linux-headers-6.1.52-pisces linux-image-6.1.52-pisces linux-perf-sg2042"
+KERNEL_pioneer="linux-headers-6.1.55-pioneer linux-image-6.1.55-pioneer linux-perf-sg2042"
+KERNEL_pisces="linux-headers-6.1.55-pisces linux-image-6.1.55-pisces linux-perf-sg2042"
 KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
 
 # == packages ==
@@ -151,7 +151,7 @@ EOF
     cat > $CHROOT_TARGET/etc/default/u-boot << EOF
 U_BOOT_PROMPT="2"
 U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
-U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon selinux=0 LANG=en_US.UTF-8"
+U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon hide_v0p7_ext selinux=0 LANG=en_US.UTF-8"
 U_BOOT_ROOT="root=LABEL=revyos-root"
 EOF
 
