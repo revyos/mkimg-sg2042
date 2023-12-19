@@ -9,8 +9,8 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
 
 # == kernel variables ==
-KERNEL_pioneer="linux-headers-6.1.55-pioneer linux-image-6.1.55-pioneer linux-perf-sg2042"
-KERNEL_pisces="linux-headers-6.1.55-pisces linux-image-6.1.55-pisces linux-perf-sg2042"
+KERNEL_pioneer="linux-headers-6.1.61-pioneer linux-image-6.1.61-pioneer linux-perf-sg2042"
+KERNEL_pisces="linux-headers-6.1.61-pisces linux-image-6.1.61-pisces linux-perf-sg2042"
 KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
 
 # == packages ==
@@ -21,7 +21,7 @@ KDE_DESKTOP="kde-plasma-desktop"
 BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
 #FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
 FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
-INCLUDE_APPS="firefox vlc gimp gimp-data-extras gimp-plugin-registry gimp-gmic"
+INCLUDE_APPS="firefox vlc gimp gimp-data-extras gimp-plugin-registry gimp-gmic chromium"
 EXTRA_TOOLS="i2c-tools net-tools ethtool"
 LIBREOFFICE="libreoffice-base \
 libreoffice-calc \
@@ -41,7 +41,7 @@ libreoffice-sdbc-postgresql \
 libreoffice-wiki-publisher \
 "
 DOCKER="docker.io apparmor ca-certificates cgroupfs-mount git needrestart xz-utils"
-ADDONS="initramfs-tools firmware-amd-graphics"
+ADDONS="initramfs-tools firmware-amd-graphics firmware-realtek"
 
 machine_info() {
     uname -a
@@ -86,8 +86,8 @@ img_setup() {
     partprobe "${DEVICE}"
 
     mkfs.vfat "${DEVICE}p1" -n EFI
-	mkfs.ext4 -F -L revyos-boot "${DEVICE}p2"
-	mkfs.ext4 -F -L revyos-root "${DEVICE}p3"
+    mkfs.ext4 -F -L revyos-boot "${DEVICE}p2"
+    mkfs.ext4 -F -L revyos-root "${DEVICE}p3"
 
     mount "${DEVICE}p3" rootfs
     mkdir -p rootfs/boot
@@ -102,9 +102,9 @@ make_rootfs() {
     --include="ca-certificates debian-ports-archive-keyring revyos-keyring locales dosfstools \
         $BASE_TOOLS $XFCE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS" \
     sid "$CHROOT_TARGET" \
-    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-base/ sid main contrib non-free non-free-firmware" \
     "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-addons/ revyos-addons main" \
-    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main"
+    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main" \
+    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-base/ sid main contrib non-free non-free-firmware"
 }
 
 after_mkrootfs() {
@@ -114,7 +114,7 @@ LABEL=revyos-root   /		    ext4	defaults,noatime,x-systemd.device-timeout=300s,x
 LABEL=revyos-boot   /boot		ext4	defaults,noatime,x-systemd.device-timeout=300s,x-systemd.mount-timeout=300s 0 0
 LABEL=EFI           /boot/efi	vfat    defaults,noatime,x-systemd.device-timeout=300s,x-systemd.mount-timeout=300s 0 0
 EOF
-    
+
     sudo chroot $CHROOT_TARGET /bin/bash << EOF
 # apt update
 apt update
@@ -127,22 +127,33 @@ echo 'debian:debian' | chpasswd
 echo revyos-${MODEL} > /etc/hostname
 echo 127.0.1.1 revyos-${MODEL} >> /etc/hosts
 
+# Disable iperf3
+systemctl disable iperf3
+
+# Set default timezone to Asia/Shanghai
+ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+echo "Asia/Shanghai" > /etc/timezone
+
 exit
 EOF
 
     # Add timestamp file in /etc
-    echo "$TIMESTAMP" > rootfs/etc/revyos-release
+    if [ ! -f revyos-release ]; then
+        echo "$TIMESTAMP" > rootfs/etc/revyos-release
+    else
+        cp -v revyos-release rootfs/etc/revyos-release
+    fi
 
     # clean up source.list
     cat > $CHROOT_TARGET/etc/apt/sources.list << EOF
-deb https://mirror.iscas.ac.cn/revyos/revyos-base/ sid main contrib non-free non-free-firmware
 deb https://mirror.iscas.ac.cn/revyos/revyos-addons/ revyos-addons main
 deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main
+deb https://mirror.iscas.ac.cn/revyos/revyos-base/ sid main contrib non-free non-free-firmware
 EOF
-    
+
     # remove openssh keys
     rm -v $CHROOT_TARGET/etc/ssh/ssh_host_*
-    
+
     cp -rvp addons/etc/systemd/system/firstboot.service $CHROOT_TARGET/etc/systemd/system/
     cp -rvp addons/opt/firstboot.sh $CHROOT_TARGET/opt/
     chroot "$CHROOT_TARGET" sh -c "systemctl enable firstboot"
@@ -163,9 +174,6 @@ EOF
 
     # clean source
     rm -vrf $CHROOT_TARGET/var/lib/apt/lists/*
-
-    # cp bootloader
-    cp -vr bootloader/${MODEL}/* $CHROOT_TARGET/boot/efi/
 
     umount -l "$CHROOT_TARGET"
 }
