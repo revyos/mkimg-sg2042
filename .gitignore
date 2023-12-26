@@ -1,4 +1,4 @@
 rootfs/
-rootfs.img
-revyos-*-*.img
+*.img
+*.img.zst
 md5sum.txt
