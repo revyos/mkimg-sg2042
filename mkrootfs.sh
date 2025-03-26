@@ -2,26 +2,27 @@
 
 set -euo pipefail
 
-MODEL=${MODEL:-pioneer} # pioneer, pisces
+MODEL=${MODEL:-pioneer} # pioneer, pisces, upstream
 DEVICE=/dev/loop100
 CHROOT_TARGET=rootfs
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
 
 # == kernel variables ==
-KERNEL_pioneer="linux-headers-6.6.56-pioneer linux-image-6.6.56-pioneer"
-KERNEL_pisces="linux-headers-6.6.56-pisces linux-image-6.6.56-pisces"
+KERNEL_pioneer="linux-headers-6.6.66-pioneer linux-image-6.6.66-pioneer"
+KERNEL_pisces="linux-headers-6.6.66-pisces linux-image-6.6.66-pisces"
+KERNEL_upstream="linux-headers-6.14.0-pioneer linux-image-6.14.0-pioneer"
 KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
 
 # == packages ==
 BASE_TOOLS="binutils file tree sudo bash-completion u-boot-menu initramfs-tools openssh-server network-manager dnsmasq-base libpam-systemd ppp wireless-regdb wpasupplicant libengine-pkcs11-openssl iptables systemd-timesyncd vim usbutils libgles2 parted"
-XFCE_DESKTOP="xorg xfce4 desktop-base lightdm xfce4-terminal tango-icon-theme xfce4-notifyd xfce4-power-manager network-manager-gnome xfce4-goodies pulseaudio alsa-utils dbus-user-session rtkit pavucontrol thunar-volman eject gvfs gvfs-backends udisks2 dosfstools e2fsprogs e2fsprogs libblockdev-crypto2 ntfs-3g polkitd exfat-fuse "
+XFCE_DESKTOP="xorg xfce4 desktop-base lightdm xfce4-terminal tango-icon-theme xfce4-notifyd xfce4-power-manager network-manager-gnome xfce4-goodies pulseaudio alsa-utils dbus-user-session rtkit pavucontrol thunar-volman eject gvfs gvfs-backends udisks2 dosfstools e2fsprogs e2fsprogs libblockdev-crypto3 ntfs-3g polkitd exfat-fuse "
 GNOME_DESKTOP="gnome-core avahi-daemon desktop-base file-roller gnome-tweaks gstreamer1.0-libav gstreamer1.0-plugins-ugly libgsf-bin libproxy1-plugin-networkmanager network-manager-gnome"
 KDE_DESKTOP="kde-plasma-desktop"
 BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
 #FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
 FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
-INCLUDE_APPS="firefox vlc gimp gimp-data-extras gimp-plugin-registry gimp-gmic chromium"
+INCLUDE_APPS="firefox vlc gimp gimp-data-extras"
 EXTRA_TOOLS="i2c-tools net-tools ethtool"
 LIBREOFFICE="libreoffice-base \
 libreoffice-calc \
@@ -102,9 +103,10 @@ make_rootfs() {
     --include="ca-certificates debian-ports-archive-keyring revyos-keyring locales dosfstools \
         $BASE_TOOLS $XFCE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS" \
     sid "$CHROOT_TARGET" \
-    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-addons/ revyos-addons main" \
-    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main" \
-    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-base/ sid main contrib non-free non-free-firmware"
+    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-sg2042/ revyos-sg2042 main" \
+    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-addons/ revyos-addons main" \
+    "deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main" \
+    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-base/ unstable main contrib non-free non-free-firmware"
 }
 
 after_mkrootfs() {
@@ -162,7 +164,7 @@ EOF
     cat > $CHROOT_TARGET/etc/default/u-boot << EOF
 U_BOOT_PROMPT="2"
 U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
-U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon hide_v0p7_ext selinux=0 LANG=en_US.UTF-8"
+U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon selinux=0 LANG=en_US.UTF-8"
 U_BOOT_ROOT="root=LABEL=revyos-root"
 EOF
 
@@ -181,8 +183,8 @@ EOF
 
 machine_info
 init
-install_deps
-qemu_setup
+#install_deps
+#qemu_setup
 img_setup
 make_rootfs
 after_mkrootfs
