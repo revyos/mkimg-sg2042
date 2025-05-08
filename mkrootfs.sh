@@ -12,6 +12,7 @@ ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
 KERNEL_pioneer="linux-headers-6.6.66-pioneer linux-image-6.6.66-pioneer"
 KERNEL_pisces="linux-headers-6.6.66-pisces linux-image-6.6.66-pisces"
 KERNEL_upstream="linux-headers-6.14.0-pioneer linux-image-6.14.0-pioneer"
+KERNEL_rv2036="linux-headers-6.12.27-rv2036 linux-image-6.12.27-rv2036"
 KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
 
 # == packages ==
@@ -103,7 +104,7 @@ make_rootfs() {
     --include="ca-certificates debian-ports-archive-keyring revyos-keyring locales dosfstools \
         $BASE_TOOLS $XFCE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS" \
     sid "$CHROOT_TARGET" \
-    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-sg2042/ revyos-sg2042 main" \
+    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-rva22v/ revyos-rva22v main" \
     "deb https://mirror.iscas.ac.cn/revyos/new/revyos-addons/ revyos-addons main" \
     "deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main" \
     "deb https://mirror.iscas.ac.cn/revyos/new/revyos-base/ unstable main contrib non-free non-free-firmware"
@@ -171,7 +172,9 @@ EOF
     # Install kernel
     sudo chroot $CHROOT_TARGET /bin/bash << EOF
 apt install -y $KERNEL
-u-boot-update
+apt install -y grub-efi-riscv64 efibootmgr
+grub-install --removable --efi-directory=/boot/efi --recheck
+update-grub
 EOF
 
     # clean source
