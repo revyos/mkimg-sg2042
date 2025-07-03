@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-MODEL=${MODEL:-pioneer} # pioneer, pisces, upstream
-DEVICE=/dev/loop100
+MODEL=${MODEL:-pioneer} # pioneer, pisces, upstream, rv2036
+DEVICE=/dev/loop101
 CHROOT_TARGET=rootfs
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
@@ -23,7 +23,7 @@ KDE_DESKTOP="kde-plasma-desktop"
 BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
 #FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
 FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
-INCLUDE_APPS="firefox vlc gimp gimp-data-extras"
+INCLUDE_APPS="firefox-esr vlc gimp"
 EXTRA_TOOLS="i2c-tools net-tools ethtool"
 LIBREOFFICE="libreoffice-base \
 libreoffice-calc \
@@ -87,27 +87,49 @@ img_setup() {
 
     partprobe "${DEVICE}"
 
+    sleep 5
+
     mkfs.vfat "${DEVICE}p1" -n EFI
     mkfs.ext4 -F -L revyos-boot "${DEVICE}p2"
     mkfs.ext4 -F -L revyos-root "${DEVICE}p3"
 
-    mount "${DEVICE}p3" rootfs
-    mkdir -p rootfs/boot
-    mount "${DEVICE}p2" rootfs/boot
-    mkdir -p rootfs/boot/efi
-    mount "${DEVICE}p1" rootfs/boot/efi
+    sleep 5
+
+    mount "${DEVICE}p3" "$CHROOT_TARGET"
+    mkdir -p "$CHROOT_TARGET"/boot
+    mount "${DEVICE}p2" "$CHROOT_TARGET"/boot
+    mkdir -p "$CHROOT_TARGET"/boot/efi
+    mount "${DEVICE}p1" "$CHROOT_TARGET"/boot/efi
 }
 
 make_rootfs() {
     mmdebstrap --architectures=riscv64 \
     --skip=check/empty \
-    --include="ca-certificates debian-ports-archive-keyring revyos-keyring locales dosfstools \
-        $BASE_TOOLS $XFCE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS" \
-    sid "$CHROOT_TARGET" \
-    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-rva22v/ revyos-rva22v main" \
-    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-addons/ revyos-addons main" \
-    "deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main" \
-    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-base/ unstable main contrib non-free non-free-firmware"
+    --include="ca-certificates locales dosfstools" \
+    trixie "$CHROOT_TARGET" \
+    "deb https://mirror.nju.edu.cn/debian/ trixie main contrib non-free non-free-firmware" \
+    "deb https://mirror.nju.edu.cn/debian/ trixie-updates main contrib non-free non-free-firmware" \
+    "deb https://mirror.nju.edu.cn/debian/ trixie-backports main contrib non-free non-free-firmware" \
+    "deb https://mirror.nju.edu.cn/debian-security trixie-security main contrib non-free non-free-firmware" \
+    "deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main"
+}
+
+install_rootfs() {
+    mount -t proc /proc "$CHROOT_TARGET"/proc
+    mount -B /sys "$CHROOT_TARGET"/sys
+    mount -B /run "$CHROOT_TARGET"/run
+    mount -B /dev "$CHROOT_TARGET"/dev
+    mount -B /dev/pts "$CHROOT_TARGET"/dev/pts
+    mount -t tmpfs tmpfs "$CHROOT_TARGET"/tmp
+    mount -t tmpfs tmpfs "$CHROOT_TARGET"/var/tmp
+    mount -t tmpfs tmpfs "$CHROOT_TARGET"/var/cache/apt/archives/
+
+    sudo chroot $CHROOT_TARGET /bin/bash << EOF
+export DEBIAN_FRONTEND=noninteractive
+apt update
+apt install -y --no-install-recommends --no-install-recommends \
+  $BASE_TOOLS $XFCE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS
+EOF
 }
 
 after_mkrootfs() {
@@ -119,6 +141,7 @@ LABEL=EFI           /boot/efi	vfat    defaults,noatime,x-systemd.device-timeout=
 EOF
 
     sudo chroot $CHROOT_TARGET /bin/bash << EOF
+export DEBIAN_FRONTEND=noninteractive
 # apt update
 apt update
 
@@ -149,9 +172,11 @@ EOF
 
     # clean up source.list
     cat > $CHROOT_TARGET/etc/apt/sources.list << EOF
-deb https://mirror.iscas.ac.cn/revyos/revyos-addons/ revyos-addons main
-deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main
-deb https://mirror.iscas.ac.cn/revyos/revyos-base/ sid main contrib non-free non-free-firmware
+deb https://mirror.nju.edu.cn/debian/ trixie main contrib non-free non-free-firmware
+deb https://mirror.nju.edu.cn/debian/ trixie-updates main contrib non-free non-free-firmware
+deb https://mirror.nju.edu.cn/debian/ trixie-backports main contrib non-free non-free-firmware
+deb https://security.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
+deb [trusted=yes] https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main
 EOF
 
     # remove openssh keys
@@ -174,6 +199,15 @@ EOF
 apt install -y $KERNEL
 apt install -y grub-efi-riscv64 efibootmgr
 grub-install --removable --efi-directory=/boot/efi --recheck
+#update-grub
+EOF
+
+    cat > $CHROOT_TARGET/etc/default/grub << EOF
+GRUB_CMDLINE_LINUX_DEFAULT=""
+GRUB_CMDLINE_LINUX="console=ttyS0,115200 earlycon selinux=0 LANG=en_US.UTF-8 no5lvl"
+EOF
+
+    sudo chroot $CHROOT_TARGET /bin/bash << EOF
 update-grub
 EOF
 
@@ -190,6 +224,7 @@ init
 #qemu_setup
 img_setup
 make_rootfs
+install_rootfs
 after_mkrootfs
 
 losetup -d "${DEVICE}"
