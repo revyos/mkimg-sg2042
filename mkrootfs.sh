@@ -2,17 +2,26 @@
 
 set -euo pipefail
 
-MODEL=${MODEL:-pioneer} # pioneer, pisces, upstream
-DEVICE=/dev/loop100
+MODEL=${MODEL:-pioneer} # pioneer, pisces, sg2044
+DEVICE=/dev/loop101
 CHROOT_TARGET=rootfs
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
 
 # == kernel variables ==
-KERNEL_pioneer="linux-headers-6.6.66-pioneer linux-image-6.6.66-pioneer"
-KERNEL_pisces="linux-headers-6.6.66-pisces linux-image-6.6.66-pisces"
-KERNEL_upstream="linux-headers-6.14.0-pioneer linux-image-6.14.0-pioneer"
+KERNEL_pioneer="linux-headers-6.16-pioneer linux-image-6.16-pioneer"
+KERNEL_sg2044="linux-headers-6.16-sg2044 linux-image-6.16-sg2044"
+#KERNEL_pisces="linux-headers-6.6.66-pisces linux-image-6.6.66-pisces"
 KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
+
+if [ "$MODEL" = "pioneer" ]; then
+  echo "Model is pioneer."
+elif [ "$MODEL" = "sg2044" ]; then
+  echo "Model is sg2044."
+else
+  echo "Model ???? ${MODEL}"
+  exit 1
+fi
 
 # == packages ==
 BASE_TOOLS="binutils file tree sudo bash-completion u-boot-menu initramfs-tools openssh-server network-manager dnsmasq-base libpam-systemd ppp wireless-regdb wpasupplicant libengine-pkcs11-openssl iptables systemd-timesyncd vim usbutils libgles2 parted"
@@ -22,8 +31,8 @@ KDE_DESKTOP="kde-plasma-desktop"
 BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
 #FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
 FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
-INCLUDE_APPS="firefox vlc gimp gimp-data-extras"
-EXTRA_TOOLS="i2c-tools net-tools ethtool"
+INCLUDE_APPS="firefox-esr vlc gimp"
+EXTRA_TOOLS="i2c-tools net-tools ethtool wget"
 LIBREOFFICE="libreoffice-base \
 libreoffice-calc \
 libreoffice-core \
@@ -86,27 +95,30 @@ img_setup() {
 
     partprobe "${DEVICE}"
 
+    sleep 5
+
     mkfs.vfat "${DEVICE}p1" -n EFI
     mkfs.ext4 -F -L revyos-boot "${DEVICE}p2"
     mkfs.ext4 -F -L revyos-root "${DEVICE}p3"
 
-    mount "${DEVICE}p3" rootfs
-    mkdir -p rootfs/boot
-    mount "${DEVICE}p2" rootfs/boot
-    mkdir -p rootfs/boot/efi
-    mount "${DEVICE}p1" rootfs/boot/efi
+    sleep 5
+
+    mount "${DEVICE}p3" "$CHROOT_TARGET"
+    mkdir -p "$CHROOT_TARGET"/boot
+    mount "${DEVICE}p2" "$CHROOT_TARGET"/boot
+    mkdir -p "$CHROOT_TARGET"/boot/efi
+    mount "${DEVICE}p1" "$CHROOT_TARGET"/boot/efi
 }
 
 make_rootfs() {
     mmdebstrap --architectures=riscv64 \
     --skip=check/empty \
-    --include="ca-certificates debian-ports-archive-keyring revyos-keyring locales dosfstools \
+    --include="ca-certificates debian-ports-archive-keyring locales locales-all dosfstools \
         $BASE_TOOLS $XFCE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS" \
-    sid "$CHROOT_TARGET" \
-    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-sg2042/ revyos-sg2042 main" \
-    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-addons/ revyos-addons main" \
+    trixie "$CHROOT_TARGET" \
     "deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main" \
-    "deb https://mirror.iscas.ac.cn/revyos/new/revyos-base/ unstable main contrib non-free non-free-firmware"
+    "deb https://mirror.iscas.ac.cn/revyos/trixie/revyos-addons/ trixie main" \
+    "deb https://mirror.iscas.ac.cn/revyos/trixie/revyos-base/ trixie main contrib non-free non-free-firmware"
 }
 
 after_mkrootfs() {
@@ -118,6 +130,7 @@ LABEL=EFI           /boot/efi	vfat    defaults,noatime,x-systemd.device-timeout=
 EOF
 
     sudo chroot $CHROOT_TARGET /bin/bash << EOF
+export DEBIAN_FRONTEND=noninteractive
 # apt update
 apt update
 
@@ -146,11 +159,18 @@ EOF
         cp -v revyos-release rootfs/etc/revyos-release
     fi
 
+    # Install revyos-kerings
+    sudo chroot $CHROOT_TARGET /bin/bash << EOF
+export DEBIAN_FRONTEND=noninteractive
+wget https://fast-mirror.isrc.ac.cn/revyos/revyos-addons/pool/main/r/revyos-keyring/revyos-keyring_2025.03.28_all.deb
+dpkg -i revyos-keyring_2025.03.28_all.deb
+EOF
+
     # clean up source.list
     cat > $CHROOT_TARGET/etc/apt/sources.list << EOF
-deb https://mirror.iscas.ac.cn/revyos/revyos-addons/ revyos-addons main
 deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main
-deb https://mirror.iscas.ac.cn/revyos/revyos-base/ sid main contrib non-free non-free-firmware
+deb https://mirror.iscas.ac.cn/revyos/trixie/revyos-addons/ trixie main
+deb https://mirror.iscas.ac.cn/revyos/trixie/revyos-base/ trixie main contrib non-free non-free-firmware
 EOF
 
     # remove openssh keys
@@ -161,15 +181,23 @@ EOF
     chroot "$CHROOT_TARGET" sh -c "systemctl enable firstboot"
 
     # Add update-u-boot config
+if [ "$MODEL" = "pioneer" ]; then
     cat > $CHROOT_TARGET/etc/default/u-boot << EOF
 U_BOOT_PROMPT="2"
 U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
-U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon selinux=0 LANG=en_US.UTF-8"
+U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon selinux=0 LANG=en_US.UTF-8 nvme_core.io_timeout=240 pcie_ports=compat"
 U_BOOT_ROOT="root=LABEL=revyos-root"
 EOF
+elif [ "$MODEL" = "sg2044" ]; then
+U_BOOT_PROMPT="2"
+U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
+U_BOOT_PARAMETERS="root=LABEL=revyos-root rootfstype=ext4 rootwait rw console=ttyS1,115200 earlycon selinux=0 LANG=en_US.UTF-8 no5lvl"
+U_BOOT_ROOT="root=LABEL=revyos-root"
+fi
 
     # Install kernel
     sudo chroot $CHROOT_TARGET /bin/bash << EOF
+apt update
 apt install -y $KERNEL
 u-boot-update
 EOF
