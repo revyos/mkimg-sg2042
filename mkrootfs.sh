@@ -9,13 +9,15 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
 
 # == kernel variables ==
-KERNEL_pioneer="linux-headers-6.16-pioneer linux-image-6.16-pioneer"
-KERNEL_sg2044="linux-headers-6.16-sg2044 linux-image-6.16-sg2044"
-#KERNEL_pisces="linux-headers-6.6.66-pisces linux-image-6.6.66-pisces"
+KERNEL_pioneer="linux-headers-6.17-pioneer linux-image-6.17-pioneer"
+KERNEL_sg2044="linux-headers-6.17-sg2044 linux-image-6.17-sg2044"
+KERNEL_pisces="linux-headers-6.6-pisces linux-image-6.6-pisces"
 KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
 
 if [ "$MODEL" = "pioneer" ]; then
   echo "Model is pioneer."
+elif [ "$MODEL" = "pisces" ]; then
+  echo "Model is pisces."
 elif [ "$MODEL" = "sg2044" ]; then
   echo "Model is sg2044."
 else
@@ -32,7 +34,7 @@ BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
 #FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
 FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
 INCLUDE_APPS="firefox-esr vlc gimp"
-EXTRA_TOOLS="i2c-tools net-tools ethtool wget"
+EXTRA_TOOLS="i2c-tools net-tools ethtool wget python3-ruyi"
 LIBREOFFICE="libreoffice-base \
 libreoffice-calc \
 libreoffice-core \
@@ -70,11 +72,11 @@ init() {
     apt update
 
     # create flash image
-    fallocate -l 7G $ROOT_IMG
+    fallocate -l 8G $ROOT_IMG
 }
 
 install_deps() {
-    apt install -y gdisk dosfstools g++-12-riscv64-linux-gnu build-essential \
+    apt install -y gdisk dosfstools g++-riscv64-linux-gnu build-essential \
         libncurses-dev gawk flex bison openssl libssl-dev \
         dkms libelf-dev libudev-dev libpci-dev libiberty-dev autoconf mkbootimg \
         fakeroot genext2fs genisoimage libconfuse-dev mtd-utils mtools qemu-utils squashfs-tools \
@@ -89,9 +91,9 @@ qemu_setup() {
 img_setup() {
     losetup -P "${DEVICE}" $ROOT_IMG
     parted -s -a optimal -- "${DEVICE}" mktable msdos
-    parted -s -a optimal -- "${DEVICE}" mkpart primary fat32 0% 256MiB
-    parted -s -a optimal -- "${DEVICE}" mkpart primary ext4 256MiB 1280MiB
-    parted -s -a optimal -- "${DEVICE}" mkpart primary ext4 1280MiB 100%
+    parted -s -a optimal -- "${DEVICE}" mkpart primary fat32 0% 512MiB
+    parted -s -a optimal -- "${DEVICE}" mkpart primary ext4 512MiB 2048MiB
+    parted -s -a optimal -- "${DEVICE}" mkpart primary ext4 2048MiB 100%
 
     partprobe "${DEVICE}"
 
@@ -182,6 +184,13 @@ EOF
 
     # Add update-u-boot config
 if [ "$MODEL" = "pioneer" ]; then
+    cat > $CHROOT_TARGET/etc/default/u-boot << EOF
+U_BOOT_PROMPT="2"
+U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
+U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon selinux=0 LANG=en_US.UTF-8 nvme_core.io_timeout=240 pcie_ports=compat"
+U_BOOT_ROOT="root=LABEL=revyos-root"
+EOF
+elif [ "$MODEL" = "pisces" ]; then
     cat > $CHROOT_TARGET/etc/default/u-boot << EOF
 U_BOOT_PROMPT="2"
 U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
