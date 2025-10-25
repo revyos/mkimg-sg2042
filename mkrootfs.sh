@@ -27,14 +27,14 @@ fi
 
 # == packages ==
 BASE_TOOLS="binutils file tree sudo bash-completion u-boot-menu initramfs-tools openssh-server network-manager dnsmasq-base libpam-systemd ppp wireless-regdb wpasupplicant libengine-pkcs11-openssl iptables systemd-timesyncd vim usbutils libgles2 parted"
-XFCE_DESKTOP="xorg xfce4 desktop-base lightdm xfce4-terminal tango-icon-theme xfce4-notifyd xfce4-power-manager network-manager-gnome xfce4-goodies pulseaudio alsa-utils dbus-user-session rtkit pavucontrol thunar-volman eject gvfs gvfs-backends udisks2 dosfstools e2fsprogs e2fsprogs libblockdev-crypto3 ntfs-3g polkitd exfat-fuse "
-GNOME_DESKTOP="gnome-core avahi-daemon desktop-base file-roller gnome-tweaks gstreamer1.0-libav gstreamer1.0-plugins-ugly libgsf-bin libproxy1-plugin-networkmanager network-manager-gnome"
-KDE_DESKTOP="kde-plasma-desktop"
+#XFCE_DESKTOP="xorg xfce4 desktop-base lightdm xfce4-terminal tango-icon-theme xfce4-notifyd xfce4-power-manager network-manager-gnome xfce4-goodies pulseaudio alsa-utils dbus-user-session rtkit pavucontrol thunar-volman eject gvfs gvfs-backends udisks2 dosfstools e2fsprogs e2fsprogs libblockdev-crypto3 ntfs-3g polkitd exfat-fuse "
+#GNOME_DESKTOP="gnome-core avahi-daemon desktop-base file-roller gnome-tweaks gstreamer1.0-libav gstreamer1.0-plugins-ugly libgsf-bin libproxy1-plugin-networkmanager network-manager-gnome"
+KDE_DESKTOP="task-kde-desktop"
 BENCHMARK_TOOLS="glmark2 mesa-utils vulkan-tools iperf3 stress-ng"
 #FONTS="fonts-crosextra-caladea fonts-crosextra-carlito fonts-dejavu fonts-liberation fonts-liberation2 fonts-linuxlibertine fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-mono fonts-noto-ui-core fonts-sil-gentium-basic"
 FONTS="fonts-noto-core fonts-noto-cjk fonts-noto-mono fonts-noto-ui-core"
-INCLUDE_APPS="firefox-esr vlc gimp"
-EXTRA_TOOLS="i2c-tools net-tools ethtool wget python3-ruyi"
+INCLUDE_APPS="firefox vlc gimp chromium"
+EXTRA_TOOLS="i2c-tools net-tools ethtool wget python3-ruyi cloud-init cloud-guest-utils"
 LIBREOFFICE="libreoffice-base \
 libreoffice-calc \
 libreoffice-core \
@@ -53,7 +53,7 @@ libreoffice-sdbc-postgresql \
 libreoffice-wiki-publisher \
 "
 DOCKER="docker.io apparmor ca-certificates cgroupfs-mount git needrestart xz-utils"
-ADDONS="initramfs-tools firmware-amd-graphics firmware-realtek"
+ADDONS="initramfs-tools firmware-amd-graphics firmware-nvidia-graphics firmware-intel-graphics firmware-intel-misc firmware-realtek"
 
 machine_info() {
     uname -a
@@ -116,7 +116,7 @@ make_rootfs() {
     mmdebstrap --architectures=riscv64 \
     --skip=check/empty \
     --include="ca-certificates debian-ports-archive-keyring locales locales-all dosfstools \
-        $BASE_TOOLS $XFCE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS" \
+        $BASE_TOOLS $KDE_DESKTOP $BENCHMARK_TOOLS $FONTS $INCLUDE_APPS $EXTRA_TOOLS $LIBREOFFICE $ADDONS" \
     trixie "$CHROOT_TARGET" \
     "deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main" \
     "deb https://mirror.iscas.ac.cn/revyos/trixie/revyos-addons/ trixie main" \
@@ -164,7 +164,7 @@ EOF
     # Install revyos-kerings
     sudo chroot $CHROOT_TARGET /bin/bash << EOF
 export DEBIAN_FRONTEND=noninteractive
-wget https://fast-mirror.isrc.ac.cn/revyos/revyos-addons/pool/main/r/revyos-keyring/revyos-keyring_2025.03.28_all.deb
+wget https://mirror.iscas.ac.cn/revyos/trixie/revyos-addons/pool/main/r/revyos-keyring/revyos-keyring_2025.03.28_all.deb
 dpkg -i revyos-keyring_2025.03.28_all.deb
 EOF
 
