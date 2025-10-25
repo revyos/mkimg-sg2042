@@ -187,20 +187,20 @@ if [ "$MODEL" = "pioneer" ]; then
     cat > $CHROOT_TARGET/etc/default/u-boot << EOF
 U_BOOT_PROMPT="2"
 U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
-U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon selinux=0 LANG=en_US.UTF-8 nvme_core.io_timeout=240 pcie_ports=compat"
+U_BOOT_PARAMETERS="console=ttyS0,115200 earlycon nvme_core.io_timeout=240 pcie_ports=compat pcie_aspm=off"
 U_BOOT_ROOT="root=LABEL=revyos-root"
 EOF
 elif [ "$MODEL" = "pisces" ]; then
     cat > $CHROOT_TARGET/etc/default/u-boot << EOF
 U_BOOT_PROMPT="2"
 U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
-U_BOOT_PARAMETERS="console=ttyS0,115200 root=LABEL=revyos-root rootfstype=ext4 rootwait rw earlycon selinux=0 LANG=en_US.UTF-8 nvme_core.io_timeout=240 pcie_ports=compat"
+U_BOOT_PARAMETERS="console=ttyS0,115200 earlycon nvme_core.io_timeout=240 pcie_ports=compat pcie_aspm=off"
 U_BOOT_ROOT="root=LABEL=revyos-root"
 EOF
 elif [ "$MODEL" = "sg2044" ]; then
 U_BOOT_PROMPT="2"
 U_BOOT_MENU_LABEL="RevyOS GNU/Linux"
-U_BOOT_PARAMETERS="root=LABEL=revyos-root rootfstype=ext4 rootwait rw console=ttyS1,115200 earlycon selinux=0 LANG=en_US.UTF-8 no5lvl"
+U_BOOT_PARAMETERS="console=ttyS1,115200 earlycon no5lvl pcie_aspm=off"
 U_BOOT_ROOT="root=LABEL=revyos-root"
 fi
 
@@ -212,7 +212,9 @@ u-boot-update
 EOF
 
     # clean source
-    rm -vrf $CHROOT_TARGET/var/lib/apt/lists/*
+    sudo chroot $CHROOT_TARGET /bin/bash << EOF
+apt clean
+EOF
 
     umount -l "$CHROOT_TARGET"
 }
