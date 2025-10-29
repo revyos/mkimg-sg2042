@@ -1,0 +1,49 @@
+#cloud-config
+
+# machine-id will be setup by cloud-init
+
+# Set the hostname
+hostname: revyos
+
+# Set the timezone
+timezone: "Asia/Shanghai"
+
+# Set the locale
+locale: "en_US.UTF-8 UTF-8"
+
+# Create a new user with password and add to common groups
+users:
+  - name: debian
+    lock_passwd: false
+    hashed_passwd: "$6$rounds=4096$9sq8MJlZfFO0mvG.$U/uUMcyx80i4TSvt8uf4XY6wFFXz.nbyhIC8hh5PNTT.6rGoTg76.Cgytd.YS5wk6lIVoFQbluS9t0K7K/z3.."
+    groups: [adm, sudo, plugdev, netdev, cdrom, audio, video, bluetooth, lp]
+    # sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    shell: /bin/bash
+    
+# Clean existing SSH keys
+ssh_pwauth: true
+disable_root: true
+ssh_deletekeys: true
+
+runcmd:
+# Disable iperf3 service
+  - systemctl disable --now iperf3
+# set hosts
+  - echo "127.0.1.1 $(hostname)" >> /etc/hosts
+# locales fix
+  - echo 'locales locales/default_environment_locale select en_US.UTF-8' | debconf-set-selections
+  - echo 'locales locales/locales_to_be_generated multiselect en_US.UTF-8 UTF-8' | debconf-set-selections
+  - rm /etc/locale.gen
+  - dpkg-reconfigure --frontend noninteractive locales
+# finish cloud-init setup
+  - touch /etc/cloud/cloud-init.disabled
+
+
+# Expand root partition to utilize max disk free space
+growpart:
+  devices: [/]
+  mode: auto
+
+resize_rootfs: noblock
+
+final_message: "RevyOS Cloud-init finished."

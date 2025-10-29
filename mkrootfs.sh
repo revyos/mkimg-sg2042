@@ -72,7 +72,7 @@ init() {
     apt update
 
     # create flash image
-    fallocate -l 8G $ROOT_IMG
+    fallocate -l 9G $ROOT_IMG
 }
 
 install_deps() {
@@ -131,29 +131,6 @@ LABEL=revyos-boot   /boot		ext4	defaults,noatime,x-systemd.device-timeout=300s,x
 LABEL=EFI           /boot/efi	vfat    defaults,noatime,x-systemd.device-timeout=300s,x-systemd.mount-timeout=300s 0 0
 EOF
 
-    sudo chroot $CHROOT_TARGET /bin/bash << EOF
-export DEBIAN_FRONTEND=noninteractive
-# apt update
-apt update
-
-# Add user
-useradd -m -s /bin/bash -G adm,sudo debian
-echo 'debian:debian' | chpasswd
-
-# Change hostname
-echo revyos-${MODEL} > /etc/hostname
-echo 127.0.1.1 revyos-${MODEL} >> /etc/hosts
-
-# Disable iperf3
-systemctl disable iperf3
-
-# Set default timezone to Asia/Shanghai
-ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-echo "Asia/Shanghai" > /etc/timezone
-
-exit
-EOF
-
     # Add timestamp file in /etc
     if [ ! -f revyos-release ]; then
         echo "$TIMESTAMP" > rootfs/etc/revyos-release
@@ -174,13 +151,6 @@ deb https://mirror.iscas.ac.cn/revyos/revyos-kernels/ revyos-kernels main
 deb https://mirror.iscas.ac.cn/revyos/trixie/revyos-addons/ trixie main
 deb https://mirror.iscas.ac.cn/revyos/trixie/revyos-base/ trixie main contrib non-free non-free-firmware
 EOF
-
-    # remove openssh keys
-    rm -v $CHROOT_TARGET/etc/ssh/ssh_host_*
-
-    cp -rvp addons/etc/systemd/system/firstboot.service $CHROOT_TARGET/etc/systemd/system/
-    cp -rvp addons/opt/firstboot.sh $CHROOT_TARGET/opt/
-    chroot "$CHROOT_TARGET" sh -c "systemctl enable firstboot"
 
     # Add update-u-boot config
 if [ "$MODEL" = "pioneer" ]; then
@@ -211,10 +181,9 @@ apt install -y $KERNEL
 u-boot-update
 EOF
 
-    # clean source
-    sudo chroot $CHROOT_TARGET /bin/bash << EOF
-apt clean
-EOF
+    cp -rp addons/etc/cloud/cloud.cfg.d/00_nocloud.cfg "$CHROOT_TARGET"/etc/cloud/cloud.cfg.d/00_nocloud.cfg
+    cp -rp addons/etc/cloud/revyos-data "$CHROOT_TARGET"/etc/cloud/
+    sed -i "s/hostname: .*$/hostname: revyos-${MODEL}/g" "$CHROOT_TARGET"/etc/cloud/revyos-data/user-data
 
     umount -l "$CHROOT_TARGET"
 }
