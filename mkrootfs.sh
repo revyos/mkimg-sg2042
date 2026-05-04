@@ -9,8 +9,8 @@ TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 ROOT_IMG=revyos-${MODEL}-${TIMESTAMP}.img
 
 # == kernel variables ==
-KERNEL_pioneer="linux-headers-6.18-revyos linux-image-6.18-revyos"
-KERNEL_sg2044="linux-headers-6.18-revyos linux-image-6.18-revyos"
+KERNEL_pioneer="linux-headers-riscv64 linux-image-riscv64"
+KERNEL_sg2044="linux-headers-riscv64 linux-image-riscv64"
 KERNEL_pisces="linux-headers-6.6-pisces linux-image-6.6-pisces"
 KERNEL=$(eval echo '$'"KERNEL_${MODEL}")
 
